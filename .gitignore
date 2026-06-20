@@ -1,0 +1,19 @@
+# Окружение
+.venv/
+venv/
+
+# Секреты — НЕ коммитить
+.env
+*.session
+
+# Python-кэши
+__pycache__/
+*.pyc
+
+# Кэши инструментов
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store

@@ -1,113 +1,106 @@
-# Разместите здесь импорты
-# Вам понадбится импортировать requests,
-# ReplyKeyboardMarkup, CommandHandler, Updater,
-# MessageHandler и Filters.
-# Посмотрите в уроках, как они импортируются.
+# main.py — BreadFast: бот показывает меню и передаёт заказы на кухню
+import os
 
-# Это id чата кухни. Для теста укажите свой.
-# Узнать его можно при помощи @userinfobot
-kitchen_chat_id = ...
-# Эта переменная должна быть экземпляром класса Updater.
-# Здесь же укажите токен своего бота
-updater = ...
-# Здесь укажите URL до меню. Посмотрите его в тексте задания.
-menu_url = ...
+import requests
+from dotenv import load_dotenv
+from telegram import ReplyKeyboardMarkup
+from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
+
+load_dotenv()  # читает .env из корня репозитория
+
+# id чата кухни (твой Telegram ID) — строка, как требует тест
+kitchen_chat_id = "725856695"
+# Экземпляр Updater; токен бота — из .env (секрет не хардкодим)
+updater = Updater(token=os.environ["BOT_TOKEN"])
+# URL меню из задания
+menu_url = "https://practicumgrade.github.io/course-material/bakery-menu.json"
+
+# Текст-подсказка (для /help, ответа на не-заказ и приветствия)
+HELP_TEXT = "Начните сообщение с «Закажи», чтобы передать заказ на кухню."
 
 
 def get_menu():
     """Получить меню из внешнего источника и вернуть его в читаемом виде"""
-    # С помощью requests.get(...) получите меню.
-    # Его URL вы указали выше. 
-    response = ...
-    # Превратите response в json
-    response_json = ...
-    # names — пустой список, проинициализируйте его
-    names = ...
-    # С помощью цикла for наполните names названиями позиций
-    # Откройте menu_url в браузере, посмотрите, как выглядит json
-    # и как из него достать имена.
-    menu_prefix = 'Сегодня в меню: '
-    # Соедините имена в одну строку через запятую.
-    # Помните про метод ".join"?
-    menu_names = ...
+    response = requests.get(menu_url)
+    response_json = response.json()
+    names = []
+    # JSON: {"positions": [{"name": "..."}, ...]} — собираем имена позиций
+    for position in response_json["positions"]:
+        names.append(position["name"])
+    menu_prefix = "Сегодня в меню: "
+    menu_names = ", ".join(names)
     menu = menu_prefix + menu_names
     return menu
 
 
 def show_menu(update, context):
-    # Получите chat_id из update.effective_chat
-    chat_id = ...
-    # В message поместите результат вызова функции get_menu
-    message = ...
+    chat_id = update.effective_chat.id
+    message = get_menu()
     context.bot.send_message(chat_id, message)
 
 
 def process_order(update, context):
-    # Получите effective_chat из update
-    chat = ...
-    # Получите сообщение клиента из update.message.text
-    client_message = ...
-    # Проверьте, что сообщение клиента начинается с «Закажи»
-    if ...:
-        order_message_prefix = 'Новый заказ: '
-        # Отправьте сообщение на kitchen_chat_id
+    chat = update.effective_chat
+    client_message = update.message.text
+    if client_message.startswith("Закажи "):
+        order_message_prefix = "Новый заказ: "
+        # Пересылаем заказ на кухню
         context.bot.send_message(
-            chat_id=...,
+            chat_id=kitchen_chat_id,
             text=order_message_prefix + update.message.text,
         )
-        # Отправьте клиенту сообщение 
-        # 'Передали сообщение на кухню, приходите завтра за заказом в любое время!'
+        # Подтверждаем клиенту
         context.bot.send_message(
-            chat_id=...,
-            text=...
+            chat_id=chat.id,
+            text="Передали сообщение на кухню, приходите завтра "
+            "за заказом в любое время!",
         )
     else:
-        # Отправьте клиенту сообщение 
-        # 'Начните сообщение с «Закажи», чтобы передать заказ на кухню.'
+        # Сообщение не похоже на заказ — объясняем, как пользоваться
         context.bot.send_message(
-            chat_id=...,
-            text=...
+            chat_id=chat.id,
+            text=HELP_TEXT,
         )
+
+
+def send_help(update, context):
+    chat = update.effective_chat
+    context.bot.send_message(
+        chat_id=chat.id,
+        text=HELP_TEXT,
+    )
 
 
 def wake_up(update, context):
-    # Получите effective_chat из update
-    chat = ...
-    # Получите first_name из update.message.chat
-    name = ...
-    # Создайте ReplyKeyboardMarkup с командой /menu.
-    # Подсмотрите в уроке, как это сделать
-    button = ...
-
-    # Отправьте сообщение "Добро пожаловать, {имя}"
-    # С кнопкой menu
+    chat = update.effective_chat
+    name = update.message.chat.first_name
+    button = ReplyKeyboardMarkup([["/menu"]], resize_keyboard=True)
+    # Приветствие с кнопкой /menu
     context.bot.send_message(
-        chat_id=...,
-        text=...,
-        reply_markup=...
+        chat_id=chat.id,
+        text="Добро пожаловать в BreadFast, {}!".format(name),
+        reply_markup=button,
     )
-    # Отправьте меню
+    # Меню
     context.bot.send_message(
-        chat_id=...,
-        text=...
+        chat_id=chat.id,
+        text=get_menu(),
     )
-    # Отправьте текст
-    # 'Начните сообщение с «Закажи», чтобы передать заказ на кухню.'
+    # Подсказка, как сделать заказ
     context.bot.send_message(
-        chat_id=...,
-        text=...
+        chat_id=chat.id,
+        text=HELP_TEXT,
     )
 
 
-# Добавьте обработчики команд 'start' и 'menu', а также обработчик текстовых сообщений.
-# На 'start' вызывайте wake_up
-# updater.dispatcher.add_handler(...)
-# На 'menu' — show_menu
-# updater.dispatcher.add_handler(...)
-# У обработчика сообщений — MessageHandler — должен быть фильтр Filters.text
-# и в ответ он должен вызывать process_order 
-# updater.dispatcher.add_handler(...)
+# Команды — выше обработчика текста: команда тоже текст,
+# и без этого порядка её перехватил бы MessageHandler.
+updater.dispatcher.add_handler(CommandHandler("start", wake_up))
+updater.dispatcher.add_handler(CommandHandler("menu", show_menu))
+updater.dispatcher.add_handler(CommandHandler("help", send_help))
+updater.dispatcher.add_handler(MessageHandler(Filters.text, process_order))
 
-# Стартуйте polling
-# Вызовите для этого на объекте updater 
-# методы start_polling и idle.
+# Запуск поллинга (на верхнем уровне модуля: тест мокает обе и ждёт
+# по одному вызову start_polling и idle)
+updater.start_polling()
+updater.idle()
